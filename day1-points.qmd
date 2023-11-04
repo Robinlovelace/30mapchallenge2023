@@ -1,0 +1,192 @@
+---
+title: "30 Day Map Challenge: Day 1"
+subtitle: "Points"
+author: "Robin Lovelace"
+cache: true
+format: gfm
+---
+
+This map shows road traffic fatalities in Great Britain.
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+remotes::install_dev("stats19")
+remotes::install_dev("gganimate")
+```
+
+```{r}
+library(tidyverse)
+library(gganimate)
+library(arrow)
+library(stats19)
+```
+
+```{r}
+#| eval: false
+collisions = get_stats19(year = 1979)
+# Show number of collisions recorded each year:
+names(collisions)
+```  
+
+```{r}
+#| label: collisions-time
+#| eval: false
+collisions |>
+  count(accident_year, accident_severity) |>
+  ggplot(aes(x = accident_year, y = n)) +
+  geom_path() +
+  labs(x = "Year", y = "Number of collisions") +
+  # Facet with free scales:
+  facet_wrap(~accident_severity, scales = "free_y") +
+  theme_bw() +
+  # set y limit to 0, NA:
+  coord_cartesian(ylim = c(0, NA))
+ggsave("collisions-time.png")
+```
+
+![](collisions-time.png)
+
+
+```{r}
+#| eval: false
+fatalities = collisions |>
+  filter(accident_severity == "Fatal")
+# Save as parquet file:
+write_csv(fatalities, "fatalities.csv")
+```
+
+```{r}
+fatalities = read_csv("fatalities.csv")
+fatalities_sf = format_sf(fatalities)
+nrow(fatalities_sf)
+```
+
+```{r}
+diff(range(fatalities_sf$accident_year)) + 1
+nrow(fatalities_sf)
+round(nrow(fatalities_sf) / diff(range(fatalities_sf$accident_year)) + 1)
+# 3k per year
+table(fatalities_sf$accident_year)
+```
+
+```{r}
+```
+
+
+```{r}
+# Basic plot
+fatalities_sf |>
+  ggplot() +
+  geom_sf() +
+  theme_bw()
+```
+
+```{r}
+#| eval: false
+# Animated plot for each year with gganimate:
+# transform to EPSG 4326:
+fatalities_sf = fatalities_sf |>
+  sf::st_transform(crs = "EPSG:4326")
+uk_plus = rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") |>
+  # filter(name == "United Kingdom")
+  # Matches UK, France, Ireland:
+  filter(name %in% c("United Kingdom", "Ireland", "France"))
+
+g_animated = fatalities_sf |>
+  # filter(accident_year < 1980) |> # test failed
+  # Test with random 1% sample:
+  # sample_frac(size = 0.01) |>
+  ggplot() +
+  geom_sf() +
+  # Set bounding box to UK:
+  geom_sf(data = uk_plus, fill = NA, color = "black") +
+  theme_bw() +
+  coord_sf(xlim = c(-10, 2), ylim = c(49, 61)) +
+  # Add title with year in form "Road traffic fatalities in 1979":
+  labs(title = "Road traffic fatalities in {round(frame_time)}") +
+  # Add watermark: "Robin Lovelace with data from the {stats19} R package" 
+  labs(caption = "By Robin Lovelace. Source: Department for Transport data imported with the {stats19} package") +
+  # Remove internal axis from plot:
+  theme(
+    axis.ticks = element_blank(),
+    axis.text = element_blank(),
+    plot.caption = element_text(size = 10, color = "grey"),
+    plot.title = element_text(size = 28)
+  ) +
+  transition_time(accident_year)
+# save result to fatalities_1979_2022.gif:
+anim = animate(g_animated, fps = 3, width = 600, height = 800)
+anim
+anim_save("fatalities_1979_2022.gif", anim)
+browseURL("fatalities_1979_2022.gif")
+list.files(pattern = "gif")
+```
+
+
+![Animated map of road traffic fatalities in Great Britain from 1979 to 2022](fatalities_1979_2022.gif)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+#| eval: false
+#| echo: false
+
+fatalities_formatted = format_collisions(fatalities)
+sapply(fatalities_formatted, class)
+```
+
+```{r}
+#| eval: false
+#| echo: false
+# fatalities_sf = format_sf(fatalities) # generated error
+# Debugging:
+x = fatalities
+n = names(x)
+coords = n[grep(pattern = "easting|northing", x = n, ignore.case = TRUE)]
+coords[1]
+# [1] "location_easting_osgr"
+# Identify rows with NA in coords columns:
+# x[[coords[1]]] | x[[coords[2]]] # Fails
+nas = is.na(x[[coords[1]]]) | is.na(x[[coords[2]]])
+summary(nas)
+```
+
+
+```{r}
+#| eval: false
+#| echo: false
+
+# Reproducible example:
+x = get_stats19(year = 2022)
+x_sf = format_sf(x)
+    n = names(x)
+    coords = n[grep(pattern = "easting|northing", x = n, ignore.case = TRUE)]
+    coord_null = is.na(x[[coords[1]]] | x[[coords[2]]])
+    message(sum(coord_null), " rows removed with no coordinates")
+    x = x[!coord_null, ]
+    x_sf = sf::st_as_sf(x, coords = coords, crs = 27700)
+    if (lonlat) {
+        x_sf = sf::st_transform(x_sf, crs = 4326)
+    }
+    x_sf
+waldo::compare(names(x), names(fatalities))
+```
+
