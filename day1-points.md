@@ -158,8 +158,9 @@ fatalities_sf |>
 
 ![](day1-points_files/figure-commonmark/unnamed-chunk-9-1.png)
 
+And for a single year:
+
 ``` r
-# Animated plot for each year with gganimate:
 # transform to EPSG 4326:
 fatalities_sf = fatalities_sf |>
   sf::st_transform(crs = "EPSG:4326")
@@ -167,35 +168,66 @@ uk_plus = rnaturalearth::ne_countries(scale = "medium", returnclass = "sf") |>
   # filter(name == "United Kingdom")
   # Matches UK, France, Ireland:
   filter(name %in% c("United Kingdom", "Ireland", "France"))
-
-g_animated = fatalities_sf |>
-  # filter(accident_year < 1980) |> # test failed
-  # Test with random 1% sample:
-  # sample_frac(size = 0.01) |>
+# Map for 1979 casualties: 
+fatalities_sf |>
+  filter(accident_year == 1979) |>
   ggplot() +
   geom_sf() +
   # Set bounding box to UK:
   geom_sf(data = uk_plus, fill = NA, color = "black") +
   theme_bw() +
-  coord_sf(xlim = c(-10, 2), ylim = c(49, 61)) +
+  coord_sf(xlim = c(-8, 1.8), ylim = c(50, 58.9)) +
   # Add title with year in form "Road traffic fatalities in 1979":
-  labs(title = "Road traffic fatalities in {round(frame_time)}") +
+  labs(title = "Road traffic fatalities in 1979") +
   # Add watermark: "Robin Lovelace with data from the {stats19} R package" 
-  labs(caption = "By Robin Lovelace. Source: Department for Transport data imported with the {stats19} package") +
+  labs(caption = "By Robin Lovelace\nDepartment for Transport data imported with the {stats19} package") +
   # Remove internal axis from plot:
   theme(
     axis.ticks = element_blank(),
     axis.text = element_blank(),
     plot.caption = element_text(size = 10, color = "grey"),
     plot.title = element_text(size = 28)
-  ) +
-  transition_time(accident_year)
-# save result to fatalities_1979_2022.gif:
-anim = animate(g_animated, fps = 3, width = 600, height = 800)
-anim
-anim_save("fatalities_1979_2022.gif", anim)
+  )
+# save result to fatalities_1979.png:
+ggsave("fatalities_1979.png", width = 8, height = 10, dpi = 500)
+browseURL("fatalities_1979.png")
+```
+
+``` r
+# Create a plot for every year and put in stats19-map-1 folder:
+dir.create("stats19-map-1")
+for (year in 1979:2022) {
+  fatalities_sf |>
+    filter(accident_year == year) |>
+    ggplot() +
+    geom_sf() +
+    # Set bounding box to UK:
+    geom_sf(data = uk_plus, fill = NA, color = "black") +
+    theme_bw() +
+    coord_sf(xlim = c(-8, 1.8), ylim = c(50, 58.9)) +
+    # Add title with year in form "Road traffic fatalities in 1979":
+    labs(title = paste0("Road traffic fatalities in ", year)) +
+    # Add watermark: "Robin Lovelace with data from the {stats19} R package" 
+    labs(caption = "By Robin Lovelace\nDepartment for Transport data imported with the {stats19} package") +
+    # Remove internal axis from plot:
+    theme(
+      axis.ticks = element_blank(),
+      axis.text = element_blank(),
+      plot.caption = element_text(size = 10, color = "grey"),
+      plot.title = element_text(size = 28)
+    )
+    # Save to file:
+    ggsave(paste0("stats19-map-1/fatalities_", year, ".png"), width = 8, height = 10, dpi = 500)
+}
+```
+
+Now we’ll take all the .pngs and convert into a .gif:
+
+``` r
+library(gifski)
+png_files = list.files("stats19-map-1", pattern = "png", full.names = TRUE)
+gifski(png_files, gif_file = "fatalities_1979_2022.gif", width = 600, height = 800, delay = 0.4)
 browseURL("fatalities_1979_2022.gif")
-list.files(pattern = "gif")
 ```
 
 ![Animated map of road traffic fatalities in Great Britain from 1979 to
